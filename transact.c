@@ -19,6 +19,8 @@
 #include <linux/wait.h>
 #include <asm/current.h>
 
+#include "transact.h"
+
 struct transact_ctx;
 struct transact_cdev;
 
@@ -275,7 +277,7 @@ __init int init_module()
 	int err;
 	
 	memset(&g_cdev, 0, sizeof(g_cdev));
-	g_cdev.devnum = MKDEV(2038, 0);
+	g_cdev.devnum = MKDEV(TRANSACT_MAJOR, 0);
 	err = register_chrdev_region(g_cdev.devnum, 1, "transact");
 	if (err < 0) {
 		printk(KERN_WARNING "Failed to allocate major/minor numbers\n");
