@@ -1,7 +1,7 @@
 /* transact.c 
  * 
- * A named semaphore with death notification. Has similar semantics to eventfd,
- * but only requires a characted device file.
+ * A named semaphore with death notification. Has similar semantics to eventfd
+ * in semaphore mode, but requires a character device file.
  *
  */
 
@@ -79,7 +79,7 @@ static int transact_switch_locked(struct transact_proc *p)
 	int res = 0;
 	DECLARE_WAITQUEUE(wait, current);
 
-	if (ctx->uncontested) {
+	if (unlikely(ctx->uncontested)) {
 		res = -EDEADLOCK;
 		spin_unlock_irq(&ctx->lock);
 		return res;
@@ -202,11 +202,11 @@ ssize_t transact_read(struct file *filp, char __user *buf, size_t count,
 	spin_lock_irq(&p->ctx->lock);
 	res = transact_switch_locked(p);  // releases p->ctx->lock.
 	data = p->ctx->value;
-	if (res == -EDEADLOCK) {
+	if (unlikely(res == -EDEADLOCK)) {
 		// Special case. EDEADLOCK means the other process has already closed the
 		// file, so return 0 to make the caller think the file is closed.
 		return 0;
-	} else if (res < 0) {
+	} else if (unlikely(res < 0)) {
 		return res;
 	}
 
