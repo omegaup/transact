@@ -8,3 +8,7 @@ mktransact
 *.ko
 *.cmd
 *.mod.c
+
+classes/
+target/
+bin/
