@@ -1,23 +1,10 @@
-ifeq ($(KERNELRELEASE),)
+.PHONY: all clean install
 
-KERNELDIR ?= /lib/modules/$(shell uname -r)/build
-PWD := $(shell pwd)
-
-.PHONY: all build clean
-
-all: transact.ko mktransact
-
-transact.ko: transact.c | transact.h
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
-
-mktransact: mktransact.c | transact.h
-	gcc -O2 -o $@ $^
+all:
+	$(MAKE) -C kernel all
 
 clean:
-	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c *.order *.symvers
-else
+	$(MAKE) -C kernel clean
 
-$(info Building with KERNELRELEASE = ${KERNELRELEASE})
-obj-m := transact.o
-
-endif
+install:
+	$(MAKE) -C kernel install
