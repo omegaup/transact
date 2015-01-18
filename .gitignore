@@ -12,3 +12,4 @@ mktransact
 classes/
 target/
 bin/
+build/
