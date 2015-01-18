@@ -42,6 +42,7 @@ struct transact_ctx {
 	int current_child;
 	int count;
 	int uncontested;
+	int initialized;
 };
 
 struct transact_cdev {
@@ -161,7 +162,7 @@ int transact_open(struct inode *inode, struct file *filp)
 	struct transact_cdev *dev;
 	struct transact_ctx *ctx;
 	struct transact_proc *p;
-	int current_child;
+	int current_child, res;
 
 	dev = container_of(inode->i_cdev, struct transact_cdev, cdev);
 	ctx = transact_get_ctx(dev, inode->i_ino);
@@ -186,6 +187,24 @@ int transact_open(struct inode *inode, struct file *filp)
 	p->ctx = ctx;
 	p->index = current_child;
 	filp->private_data = p;
+
+	// Always wait for the other process. This is done to avoid a situation where
+	// the parent gets so far ahead of the child process, that it opens the
+	// transact file and then is terminated before the child even had the chance
+	// to open it itself. This causes the child to be stuck waiting for a peer
+	// that will never arrive.
+	spin_lock_irq(&p->ctx->lock);
+	res = transact_switch_locked(p);  // releases p->ctx->lock.
+
+	if (res != 0) {
+		spin_lock_irq(&dev->lock);
+		kref_put(&ctx->kref, transact_release_ctx_locked);
+		spin_unlock_irq(&dev->lock);
+
+		// If the other side is gone by now, return ENXIO so it is not confused
+		// with EBUSY above.
+		return res == -EDEADLK ? -EACCES : res;
+	}
 
 	return 0;
 }
@@ -228,17 +247,22 @@ ssize_t transact_write(struct file *filp, const char __user *buf, size_t count,
 	if (unlikely(!p->initialized)) {
 		p->initialized = 1;
 		// Passing nonzero to the first write means that this process is Main and
-		// should pass through unobstructed. The other process should take the
-		// switch to block until Main has reached its first switch point, unless
-		// Main already has, in which case it's the turn of the child.
+		// should pass through unobstructed.
+		//
+		// If the first process to issue the write is Main, it should run
+		// unobstructed and set the initialized flag, so that the other process
+		// does not need to stop when it issues the write. If, on the other hand,
+		// the first process to get here is the child, then it should wait until
+		// Main has issued its first read call.
 		spin_lock_irq(&p->ctx->lock);
-		if (!data && p->ctx->current_child != p->index) {
+		if (!data && !p->ctx->initialized) {
 			res = transact_switch_locked(p);  // releases ctx->lock.
 			if (res == -EDEADLOCK)
 				return 0;
 			else if (res < 0)
 				return res;
 		} else {
+			p->ctx->initialized = 1;
 			spin_unlock_irq(&p->ctx->lock);
 		}
 	} else {
