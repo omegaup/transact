@@ -3,7 +3,7 @@ ifeq ($(KERNELRELEASE),)
 KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 PWD := $(shell pwd)
 
-.PHONY: all build clean
+.PHONY: all build clean install
 
 all: transact.ko mktransact
 
@@ -16,8 +16,9 @@ mktransact: mktransact.c | transact.h
 clean:
 	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c *.order *.symvers
 
-install:
+install: transact.ko mktransact
 	insmod transact.ko
+	cp mktransact /usr/bin/mktransact
 
 else
 
