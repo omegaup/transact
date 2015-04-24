@@ -384,7 +384,7 @@ Message_read(Message* self, PyObject* args) {
 		return NULL;
 	}
 
-	PyObject* result = PyByteArray_FromStringAndSize(self->readptr, size);
+	PyObject* result = PyBuffer_FromMemory(self->readptr, size);
 	self->readptr += size;
 	return result;
 }
