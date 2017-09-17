@@ -5,6 +5,8 @@ mktransact
 *.symvers
 .tmp_versions
 *.o
+*.so
+*.a
 *.ko
 *.cmd
 *.mod.c
