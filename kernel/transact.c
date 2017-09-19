@@ -33,7 +33,7 @@ struct transact_proc {
 struct transact_ctx {
 	struct transact_proc child[2];
 	struct transact_cdev *dev;
-	__u64 value;
+	__u64 token;
 	wait_queue_head_t wqh;
 	struct list_head contexts;
 	spinlock_t lock;
@@ -42,7 +42,8 @@ struct transact_ctx {
 	int current_child;
 	int count;
 	int uncontested;
-	int initialized;
+	int parent_initialized;
+	int child_initialized;
 };
 
 struct transact_cdev {
@@ -203,7 +204,7 @@ int transact_open(struct inode *inode, struct file *filp)
 
 		// If the other side is gone by now, return ENXIO so it is not confused
 		// with EBUSY above.
-		return res == -EDEADLK ? -EACCES : res;
+		return res == -EDEADLK ? -ENXIO : res;
 	}
 
 	return 0;
@@ -220,7 +221,7 @@ ssize_t transact_read(struct file *filp, char __user *buf, size_t count,
 		return -EINVAL;
 	spin_lock_irq(&p->ctx->lock);
 	res = transact_switch_locked(p);  // releases p->ctx->lock.
-	data = p->ctx->value;
+	data = p->ctx->token;
 	if (unlikely(res == -EDEADLOCK)) {
 		// Special case. EDEADLOCK means the other process has already closed the
 		// file, so return 0 to make the caller think the file is closed.
@@ -236,42 +237,65 @@ ssize_t transact_write(struct file *filp, const char __user *buf, size_t count,
 		loff_t *ppos)
 {
 	struct transact_proc *p = (struct transact_proc *)filp->private_data;
-	__u64 data;
-	int res;
+	__u64 data, token;
+	int parent;
+	ssize_t res;
 
 	if (count < sizeof(data))
 		return -EINVAL;
+	if (p->initialized || count > sizeof(data))
+		return -ENOSPC;
 	if (get_user(data, (const __u64 __user *)buf))
 		return -EFAULT;
 
-	if (unlikely(!p->initialized)) {
-		p->initialized = 1;
-		// Passing nonzero to the first write means that this process is Main and
-		// should pass through unobstructed.
-		//
-		// If the first process to issue the write is Main, it should run
-		// unobstructed and set the initialized flag, so that the other process
-		// does not need to stop when it issues the write. If, on the other hand,
-		// the first process to get here is the child, then it should wait until
-		// Main has issued its first read call.
-		spin_lock_irq(&p->ctx->lock);
-		if (!data && !p->ctx->initialized) {
-			res = transact_switch_locked(p);  // releases ctx->lock.
-			if (res == -EDEADLOCK)
-				return 0;
-			else if (res < 0)
-				return res;
-		} else {
-			p->ctx->initialized = 1;
-			spin_unlock_irq(&p->ctx->lock);
+	parent = (data & 1ULL) == 1ULL;
+	token = data & ~1ULL;
+
+	// Passing nonzero to the first write means that this process is Main and
+	// should pass through unobstructed.
+	//
+	// If the first process to issue the write is Main, it should run
+	// unobstructed and set the initialized flag, so that the other process
+	// does not need to stop when it issues the write. If, on the other hand,
+	// the first process to get here is the child, then it should wait until
+	// Main has issued its first read call.
+	res = sizeof(data);
+	spin_lock_irq(&p->ctx->lock);
+	if (parent) {
+		if (p->ctx->parent_initialized) {
+			res = -EINVAL;
+			goto unlock;
 		}
+		p->ctx->parent_initialized = 1;
+		p->ctx->token = token;
 	} else {
-		spin_lock_irq(&p->ctx->lock);
-		p->ctx->value = data;
-		spin_unlock_irq(&p->ctx->lock);
+		if (p->ctx->child_initialized) {
+			res = -EINVAL;
+			goto unlock;
+		}
+		p->ctx->child_initialized = 1;
+		if (!p->ctx->parent_initialized) {
+			int switch_res = transact_switch_locked(p);  // releases ctx->lock.
+			if (switch_res == -EDEADLOCK) {
+				res = 0;
+				goto out;
+			}
+			if (switch_res < 0) {
+				res = switch_res;
+				goto out;
+			}
+			spin_lock_irq(&p->ctx->lock);
+		}
+		if (token != p->ctx->token) {
+			res = -EINVAL;
+			goto unlock;
+		}
 	}
 
-	return sizeof(data);
+unlock:
+	spin_unlock_irq(&p->ctx->lock);
+out:
+	return res;
 }
 
 int transact_release(struct inode *inode, struct file *filp)
