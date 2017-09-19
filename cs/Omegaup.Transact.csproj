@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<AssemblyName>Omegaup.Transact</AssemblyName>
+		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+		<Configuration>Release</Configuration>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+	</PropertyGroup>
+</Project>
