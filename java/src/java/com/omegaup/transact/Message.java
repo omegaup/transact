@@ -4,15 +4,25 @@
 
 package com.omegaup.transact;
 
-public class Message {
-	public int msgid;
-	private long ptr;
-	private long writeptr;
-	private long readptr;
-	private long end;
+import java.io.IOException;
 
-	public Message() {
+public class Message {
+	private long messagePtr;
+	public int msgid;
+
+	Message(long interfacePtr) throws IOException {
+		messagePtr = nativeInit(interfacePtr);
 	}
+
+	@Override
+	public void finalize() {
+		nativeFinalize(this.messagePtr);
+		this.messagePtr = 0;
+	}
+
+	public native void allocate(int msgid, long bytes) throws IOException;
+	public native void receive() throws IOException;
+	public native int send() throws IOException;
 
 	public void writeInt(int x, int minValue, int maxValue) {
 		if (x < minValue || x > maxValue) {
@@ -74,4 +84,7 @@ public class Message {
 	public boolean readBool() {
 		return readByte() != 0;
 	}
+
+	private native long nativeInit(long interfacePtr) throws IOException;
+	private native void nativeFinalize(long messagePtr);
 }

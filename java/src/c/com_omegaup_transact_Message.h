@@ -9,6 +9,30 @@ extern "C" {
 #endif
 /*
  * Class:     com_omegaup_transact_Message
+ * Method:    allocate
+ * Signature: (IJ)V
+ */
+JNIEXPORT void JNICALL Java_com_omegaup_transact_Message_allocate
+  (JNIEnv *, jobject, jint, jlong);
+
+/*
+ * Class:     com_omegaup_transact_Message
+ * Method:    receive
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_com_omegaup_transact_Message_receive
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     com_omegaup_transact_Message
+ * Method:    send
+ * Signature: ()I
+ */
+JNIEXPORT jint JNICALL Java_com_omegaup_transact_Message_send
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     com_omegaup_transact_Message
  * Method:    writeByte
  * Signature: (I)V
  */
@@ -70,6 +94,22 @@ JNIEXPORT jint JNICALL Java_com_omegaup_transact_Message_readInt
  */
 JNIEXPORT jlong JNICALL Java_com_omegaup_transact_Message_readLong
   (JNIEnv *, jobject);
+
+/*
+ * Class:     com_omegaup_transact_Message
+ * Method:    nativeInit
+ * Signature: (J)J
+ */
+JNIEXPORT jlong JNICALL Java_com_omegaup_transact_Message_nativeInit
+  (JNIEnv *, jobject, jlong);
+
+/*
+ * Class:     com_omegaup_transact_Message
+ * Method:    nativeFinalize
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL Java_com_omegaup_transact_Message_nativeFinalize
+  (JNIEnv *, jobject, jlong);
 
 #ifdef __cplusplus
 }

@@ -8,25 +8,29 @@ import java.io.IOException;
 
 public class Interface {
 	static {
-		System.loadLibrary("transact");
+		System.loadLibrary("transact_java");
 	}
 
+	private long interfacePtr;
 	public final String name;
-	private final long size;
-	private final int transactFd;
-	private final int shmFd;
-	private final long shm;
 
 	public Interface(boolean parent, String name, String transactName,
 			String shmName, long size) throws IOException {
 		this.name = name;
-		this.size = this.shm = this.transactFd = this.shmFd = 0;
-		nativeInit(parent, transactName, shmName, size);
+		this.interfacePtr = nativeInit(parent, transactName, shmName, size);
 	}
 
-	public native void get(Message message) throws IOException;
-	public native void allocate(Message message, int msgid, long bytes) throws IOException;
-	public native void call(Message message, boolean noret, boolean nofree) throws IOException;
+	@Override
+	public void finalize() {
+		nativeFinalize(this.interfacePtr);
+		this.interfacePtr = 0;
+	}
 
-	private native void nativeInit(boolean parent, String transactName, String shmName, long size) throws IOException;
+	public Message buildMessage() throws IOException {
+		return new Message(interfacePtr);
+	}
+
+	private native long nativeInit(boolean parent, String transactName,
+			String shmName, long size) throws IOException;
+	private native void nativeFinalize(long interfacePtr);
 }
